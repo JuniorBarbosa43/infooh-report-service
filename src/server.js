@@ -30,8 +30,13 @@ app.post('/report', async (req, res) => {
     const campaign_id =
       body.campaign_id ||
       body.campaignId ||
+      // fallback: alguns webhooks enviam o ID da campanha como campo personalizado do contato
+      body.infooh_campaign_id ||
+      body.infoohCampaignId ||
       body?.customData?.campaign_id ||
       body?.customData?.campaignId ||
+      body?.customData?.infooh_campaign_id ||
+      body?.customData?.infoohCampaignId ||
       body?.custom_data?.campaign_id ||
       body?.data?.campaign_id ||
       q.campaign_id ||
