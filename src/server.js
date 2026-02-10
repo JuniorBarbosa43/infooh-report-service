@@ -1,9 +1,12 @@
 import express from 'express';
 import cors from 'cors';
 import { getCampaignDetails, extractMetrics, buildPublicReportLink } from './infooh.js';
+import { resolveFieldIdsByName, updateContactCustomFields } from './leadconnector.js';
 
 const app = express();
 app.use(cors());
+// Alguns webhooks enviam application/x-www-form-urlencoded por padrão
+app.use(express.urlencoded({ extended: true }));
 app.use(express.json({ limit: '1mb' }));
 
 app.get('/health', (req, res) => {
@@ -12,9 +15,47 @@ app.get('/health', (req, res) => {
 
 app.post('/report', async (req, res) => {
   try {
-    const { campaign_id, days } = req.body || {};
+    // DEBUG: log do payload recebido (chaves e content-type) para diagnosticar webhooks do MovaTalks
+    console.log('[report] content-type:', req.headers['content-type']);
+    try {
+      const b = req.body || {};
+      console.log('[report] body keys:', Object.keys(b));
+      if (b && typeof b === 'object') {
+        console.log('[report] body sample:', JSON.stringify(b).slice(0, 2000));
+      }
+    } catch {}
+    const body = req.body || {};
+    const q = req.query || {};
+
+    const campaign_id =
+      body.campaign_id ||
+      body.campaignId ||
+      body?.customData?.campaign_id ||
+      body?.customData?.campaignId ||
+      body?.custom_data?.campaign_id ||
+      body?.data?.campaign_id ||
+      q.campaign_id ||
+      q.campaignId;
+
+    const contact_id =
+      body.contact_id ||
+      body.contactId ||
+      body?.customData?.contact_id ||
+      body?.customData?.contactId ||
+      body?.custom_data?.contact_id ||
+      body?.data?.contact_id ||
+      q.contact_id ||
+      q.contactId;
+
+    const days =
+      body.days ||
+      body?.customData?.days ||
+      body?.custom_data?.days ||
+      body?.data?.days ||
+      q.days;
+
     const d = Number(days);
-    if (!campaign_id) return res.status(400).json({ ok: false, error: 'campaign_id_required' });
+    if (!campaign_id) return res.status(400).json({ ok: false, error: 'campaign_id_required', receivedKeys: Object.keys(body), receivedQueryKeys: Object.keys(q) });
     if (![7, 14].includes(d)) return res.status(400).json({ ok: false, error: 'days_must_be_7_or_14' });
 
     const details = await getCampaignDetails(campaign_id);
@@ -28,14 +69,16 @@ app.post('/report', async (req, res) => {
         ok: false,
         ...metrics,
         campaign_id,
+        contact_id: contact_id || null,
         days: d,
         link_do_relatorio: link
       });
     }
 
-    return res.json({
+    const payload = {
       ok: true,
       campaign_id,
+      contact_id: contact_id || null,
       days: d,
       alcance_total_abs: String(metrics.alcance_total_abs ?? ''),
       alcance_total_pct: String(metrics.alcance_total_pct ?? ''),
@@ -43,6 +86,49 @@ app.post('/report', async (req, res) => {
       frequencia: String(metrics.frequencia ?? ''),
       grp: String(metrics.grp ?? ''),
       link_do_relatorio: link
+    };
+
+    // Se contact_id + credenciais LC_* existirem, atualizar o contato automaticamente.
+    // O MovaTalks não consegue mapear a response do webhook para campos, então fazemos aqui.
+    let contact_updated = false;
+    let contact_update_error = null;
+
+    if (contact_id && process.env.LC_PIT && process.env.LC_LOCATION_ID) {
+      try {
+        const desiredFieldNames = [
+          'Alcance Total ABS',
+          'Alcance %',
+          'Impactos / Visualizações Total',
+          'Frequência',
+          'GRP',
+          'Link Do Relatório'
+        ];
+
+        const nameToId = await resolveFieldIdsByName(desiredFieldNames);
+
+        const fieldIdToValue = {};
+        if (nameToId['Alcance Total ABS']) fieldIdToValue[nameToId['Alcance Total ABS']] = payload.alcance_total_abs;
+        if (nameToId['Alcance %']) fieldIdToValue[nameToId['Alcance %']] = payload.alcance_total_pct;
+        if (nameToId['Impactos / Visualizações Total']) fieldIdToValue[nameToId['Impactos / Visualizações Total']] = payload.impactos_visualizacoes_total;
+        if (nameToId['Frequência']) fieldIdToValue[nameToId['Frequência']] = payload.frequencia;
+        if (nameToId['GRP']) fieldIdToValue[nameToId['GRP']] = payload.grp;
+        if (nameToId['Link Do Relatório']) fieldIdToValue[nameToId['Link Do Relatório']] = payload.link_do_relatorio;
+
+        await updateContactCustomFields(contact_id, fieldIdToValue);
+        contact_updated = true;
+      } catch (e) {
+        contact_update_error = {
+          message: e.message,
+          status: e.status,
+          data: e.data
+        };
+      }
+    }
+
+    return res.json({
+      ...payload,
+      contact_updated,
+      contact_update_error
     });
   } catch (e) {
     const status = e.status || 500;
