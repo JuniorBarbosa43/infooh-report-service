@@ -123,7 +123,7 @@ app.post('/report', async (req, res) => {
       grp: fmtInt(metrics.grp),
       cpm_total: fmtBRL(metrics.cpm_total),
       cpm_medio: fmtBRL(metrics.cpm_medio),
-      link_do_relatorio: link
+      link_do_relatorio: null
     };
 
     // Se contact_id + credenciais LC_* existirem, atualizar o contato automaticamente.
@@ -141,8 +141,7 @@ app.post('/report', async (req, res) => {
           'Frequência',
           'GRP',
           'CPM Total',
-          'CPM Médio',
-          'Link Do Relatório'
+          'CPM Médio'
         ];
 
         const nameToId = await resolveFieldIdsByName(desiredFieldNames);
@@ -156,7 +155,6 @@ app.post('/report', async (req, res) => {
         if (nameToId['GRP']) fieldIdToValue[nameToId['GRP']] = payload.grp;
         if (nameToId['CPM Total']) fieldIdToValue[nameToId['CPM Total']] = payload.cpm_total;
         if (nameToId['CPM Médio']) fieldIdToValue[nameToId['CPM Médio']] = payload.cpm_medio;
-        if (nameToId['Link Do Relatório']) fieldIdToValue[nameToId['Link Do Relatório']] = payload.link_do_relatorio;
 
         await updateContactCustomFields(contact_id, fieldIdToValue);
         contact_updated = true;
