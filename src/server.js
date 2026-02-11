@@ -65,7 +65,8 @@ app.post('/report', async (req, res) => {
 
     const d = Number(days);
     if (!campaign_id) return res.status(400).json({ ok: false, error: 'campaign_id_required', receivedKeys: Object.keys(body), receivedQueryKeys: Object.keys(q) });
-    if (![7, 14].includes(d)) return res.status(400).json({ ok: false, error: 'days_must_be_7_or_14' });
+    const allowedDays = [7, 14, 21, 30, 35, 42, 60];
+    if (!allowedDays.includes(d)) return res.status(400).json({ ok: false, error: 'days_not_supported', allowedDays });
 
     const details = await getCampaignDetails(campaign_id);
     const metrics = extractMetrics(details, d);
