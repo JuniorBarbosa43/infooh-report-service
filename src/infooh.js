@@ -292,6 +292,15 @@ export function extractMetrics(campaignDetails, days) {
     const grp = campaign?.total_grp?.[k];
 
     if (alcanceAbs != null || alcancePct != null || freq != null || grp != null) {
+      // CPM (custo por mil) vem em audience_and_scope.cost_per_thousand.{total,avarage}
+      const k2 = String(days).padStart(2, '0');
+      const cpmTotal = campaignDetails?.audience_and_scope?.cost_per_thousand?.total?.[k2] ??
+        campaignDetails?.audience_and_scope?.cost_per_thousand?.total?.[String(days)] ??
+        null;
+      const cpmMedio = campaignDetails?.audience_and_scope?.cost_per_thousand?.avarage?.[k2] ??
+        campaignDetails?.audience_and_scope?.cost_per_thousand?.avarage?.[String(days)] ??
+        null;
+
       return {
         ok: true,
         alcance_total_abs: alcanceAbs ?? null,
@@ -300,9 +309,12 @@ export function extractMetrics(campaignDetails, days) {
         impactos_visualizacoes_total: alcanceAbs ?? null,
         frequencia: freq ?? null,
         grp: grp ?? null,
+        cpm_total: cpmTotal,
+        cpm_medio: cpmMedio,
         debug: {
           source: 'audience_and_scope.campaign',
-          key: k
+          key: k,
+          key2: k2
         }
       };
     }

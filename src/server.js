@@ -80,16 +80,49 @@ app.post('/report', async (req, res) => {
       });
     }
 
+    const toNum = (v) => {
+      if (v == null || v === '') return null;
+      const n = Number(v);
+      return Number.isFinite(n) ? n : null;
+    };
+
+    const fmtInt = (v) => {
+      const n = toNum(v);
+      if (n == null) return '';
+      return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(n);
+    };
+
+    const fmtDec = (v, digits = 2) => {
+      const n = toNum(v);
+      if (n == null) return '';
+      return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(n);
+    };
+
+    const fmtPct = (v) => {
+      const n = toNum(v);
+      if (n == null) return '';
+      return `${fmtDec(n, 2)}%`;
+    };
+
+    const fmtBRL = (v) => {
+      const n = toNum(v);
+      if (n == null) return '';
+      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+    };
+
     const payload = {
       ok: true,
       campaign_id,
       contact_id: contact_id || null,
       days: d,
-      alcance_total_abs: String(metrics.alcance_total_abs ?? ''),
-      alcance_total_pct: String(metrics.alcance_total_pct ?? ''),
-      impactos_visualizacoes_total: String(metrics.impactos_visualizacoes_total ?? ''),
-      frequencia: String(metrics.frequencia ?? ''),
-      grp: String(metrics.grp ?? ''),
+      // valores formatados (pt-BR) para gravar limpo nos campos
+      alcance_total_abs: fmtInt(metrics.alcance_total_abs),
+      alcance_total_pct: fmtPct(metrics.alcance_total_pct),
+      impactos_visualizacoes_total: fmtInt(metrics.impactos_visualizacoes_total),
+      frequencia: fmtDec(metrics.frequencia, 2),
+      grp: fmtInt(metrics.grp),
+      cpm_total: fmtBRL(metrics.cpm_total),
+      cpm_medio: fmtBRL(metrics.cpm_medio),
       link_do_relatorio: link
     };
 
@@ -101,22 +134,28 @@ app.post('/report', async (req, res) => {
     if (contact_id && process.env.LC_PIT && process.env.LC_LOCATION_ID) {
       try {
         const desiredFieldNames = [
+          'Nome Da Campanha',
           'Alcance Total ABS',
           'Alcance %',
           'Impactos / Visualizações Total',
           'Frequência',
           'GRP',
+          'CPM Total',
+          'CPM Médio',
           'Link Do Relatório'
         ];
 
         const nameToId = await resolveFieldIdsByName(desiredFieldNames);
 
         const fieldIdToValue = {};
+        if (nameToId['Nome Da Campanha']) fieldIdToValue[nameToId['Nome Da Campanha']] = String(details?.name || '');
         if (nameToId['Alcance Total ABS']) fieldIdToValue[nameToId['Alcance Total ABS']] = payload.alcance_total_abs;
         if (nameToId['Alcance %']) fieldIdToValue[nameToId['Alcance %']] = payload.alcance_total_pct;
         if (nameToId['Impactos / Visualizações Total']) fieldIdToValue[nameToId['Impactos / Visualizações Total']] = payload.impactos_visualizacoes_total;
         if (nameToId['Frequência']) fieldIdToValue[nameToId['Frequência']] = payload.frequencia;
         if (nameToId['GRP']) fieldIdToValue[nameToId['GRP']] = payload.grp;
+        if (nameToId['CPM Total']) fieldIdToValue[nameToId['CPM Total']] = payload.cpm_total;
+        if (nameToId['CPM Médio']) fieldIdToValue[nameToId['CPM Médio']] = payload.cpm_medio;
         if (nameToId['Link Do Relatório']) fieldIdToValue[nameToId['Link Do Relatório']] = payload.link_do_relatorio;
 
         await updateContactCustomFields(contact_id, fieldIdToValue);
