@@ -42,25 +42,56 @@ async function httpJson(url, { method = 'GET', headers = {}, body } = {}) {
 export async function getToken() {
   const { baseUrl, username, password } = getConfig();
   const now = Date.now();
-  if (cache.token && (now - cache.at) < TTL_MS) return cache.token;
 
-  const url = `${baseUrl}/api/token/`;
-  const data = await httpJson(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: { username, password }
-  });
-
-  // A collection do Postman não mostra o formato exato; suportar chaves comuns
-  const token = data?.token || data?.key || data?.access || data?.access_token;
-  if (!token) {
-    const err = new Error('Token not found in login response');
-    err.data = data;
-    throw err;
+  // Permitir token estático via ENV para ambientes onde o login por usuário/senha não é suportado
+  if (process.env.INFOOH_TOKEN) {
+    return process.env.INFOOH_TOKEN;
   }
 
-  cache = { token, at: now };
-  return token;
+  if (cache.token && (now - cache.at) < TTL_MS) return cache.token;
+
+  // Alguns ambientes InfoOH podem ter endpoints de autenticação diferentes.
+  // Tentar uma lista de caminhos comuns.
+  const candidates = [
+    { path: '/api/token/', method: 'POST' },
+    { path: '/api/token', method: 'POST' },
+    { path: '/api/api-token-auth/', method: 'POST' },
+    { path: '/api/api-token-auth', method: 'POST' },
+    { path: '/api/auth/token/', method: 'POST' },
+    { path: '/api/auth/token', method: 'POST' },
+    { path: '/api/v1/token/', method: 'POST' },
+    { path: '/api/v1/token', method: 'POST' },
+    { path: '/api/login/', method: 'POST' },
+    { path: '/api/login', method: 'POST' }
+  ];
+
+  let lastErr;
+  for (const c of candidates) {
+    const url = `${baseUrl}${c.path}`;
+    try {
+      const data = await httpJson(url, {
+        method: c.method,
+        headers: { 'Content-Type': 'application/json' },
+        body: { username, password }
+      });
+
+      // suportar chaves comuns
+      const token = data?.token || data?.key || data?.access || data?.access_token;
+      if (!token) {
+        const err = new Error('Token not found in login response');
+        err.data = data;
+        throw err;
+      }
+
+      cache = { token, at: now };
+      return token;
+    } catch (e) {
+      lastErr = e;
+      // continuar tentando os próximos
+    }
+  }
+
+  throw lastErr || new Error('Unable to authenticate to InfoOH');
 }
 
 export async function getCampaignDetails(campaignId) {
