@@ -9,6 +9,10 @@ app.use(cors());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json({ limit: '1mb' }));
 
+app.get('/', (req, res) => {
+  res.json({ ok: true, service: 'infooh-report-service' });
+});
+
 app.get('/health', (req, res) => {
   res.json({ ok: true, service: 'infooh-report-service' });
 });
