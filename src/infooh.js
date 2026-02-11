@@ -25,9 +25,39 @@ async function httpJson(url, { method = 'GET', headers = {}, body } = {}) {
     },
     body: body ? JSON.stringify(body) : undefined
   });
+
+  const contentType = res.headers.get('content-type') || '';
   const text = await res.text();
+
   let data;
-  try { data = text ? JSON.parse(text) : null; } catch { data = { _raw: text }; }
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = { _raw: text };
+  }
+
+  // anexar meta útil (sem jogar o texto completo no erro por padrão)
+  if (data && typeof data === 'object') {
+    data._meta = {
+      status: res.status,
+      contentType
+    };
+  }
+
+  // Se a resposta não for JSON, tratar como erro (mesmo que HTTP 200)
+  const isJson = contentType.toLowerCase().includes('application/json') || contentType.toLowerCase().includes('+json');
+  if (!isJson) {
+    const err = new Error('Non-JSON response from InfoOH');
+    err.status = res.status;
+    err.url = url;
+    err.method = method;
+    err.data = {
+      contentType,
+      snippet: (text || '').slice(0, 800)
+    };
+    throw err;
+  }
+
   if (!res.ok) {
     const err = new Error(`HTTP ${res.status} ${res.statusText}`);
     err.status = res.status;
@@ -36,6 +66,7 @@ async function httpJson(url, { method = 'GET', headers = {}, body } = {}) {
     err.method = method;
     throw err;
   }
+
   return data;
 }
 
