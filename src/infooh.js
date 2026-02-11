@@ -129,9 +129,24 @@ export async function getCampaignDetails(campaignId) {
   const { baseUrl } = getConfig();
   const token = await getToken();
   const url = `${baseUrl}/api/v1/campaigns/${encodeURIComponent(String(campaignId))}/`;
-  return httpJson(url, {
-    headers: { Authorization: `token ${token}` }
-  });
+
+  // A InfoOH parece usar diferentes esquemas de Authorization dependendo do ambiente.
+  // Tentar os mais comuns até obter JSON.
+  const schemes = ['token', 'Token', 'Bearer', 'JWT'];
+  let lastErr;
+
+  for (const s of schemes) {
+    try {
+      return await httpJson(url, {
+        headers: { Authorization: `${s} ${token}` }
+      });
+    } catch (e) {
+      lastErr = e;
+      // Se for Non-JSON response, continuar tentando. Para outros erros (404/403), também tentar os demais.
+    }
+  }
+
+  throw lastErr;
 }
 
 function walk(obj, fn, path = []) {
