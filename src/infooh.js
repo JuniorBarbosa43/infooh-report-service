@@ -301,12 +301,16 @@ export function extractMetrics(campaignDetails, days) {
         campaignDetails?.audience_and_scope?.cost_per_thousand?.avarage?.[String(days)] ??
         null;
 
+      // "IMPACTOS | VISUALIZAÇÕES TOTAL" no painel bate com reach_abs * frequency.
+      const impactsTotal = (alcanceAbs != null && freq != null)
+        ? (Number(alcanceAbs) * Number(freq))
+        : null;
+
       return {
         ok: true,
         alcance_total_abs: alcanceAbs ?? null,
         alcance_total_pct: alcancePct ?? null,
-        // A API não traz um campo explícito de impactos multi-período; usar alcance absoluto como proxy.
-        impactos_visualizacoes_total: alcanceAbs ?? null,
+        impactos_visualizacoes_total: Number.isFinite(impactsTotal) ? impactsTotal : null,
         frequencia: freq ?? null,
         grp: grp ?? null,
         cpm_total: cpmTotal,
