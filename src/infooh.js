@@ -32,6 +32,8 @@ async function httpJson(url, { method = 'GET', headers = {}, body } = {}) {
     const err = new Error(`HTTP ${res.status} ${res.statusText}`);
     err.status = res.status;
     err.data = data;
+    err.url = url;
+    err.method = method;
     throw err;
   }
   return data;

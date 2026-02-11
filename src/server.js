@@ -141,6 +141,8 @@ app.post('/report', async (req, res) => {
       ok: false,
       error: e.message || 'unknown_error',
       status,
+      url: e.url,
+      method: e.method,
       data: e.data && status !== 500 ? e.data : undefined
     });
   }
