@@ -281,6 +281,33 @@ function extractFromComparativeNode(compNode, days) {
 }
 
 export function extractMetrics(campaignDetails, days) {
+  // Caminho conhecido do endpoint v1/campaigns: audience_and_scope.campaign.
+  // Nele, os dias vêm como chaves "007" e "014" (strings com zero à esquerda).
+  const campaign = campaignDetails?.audience_and_scope?.campaign;
+  if (campaign && typeof campaign === 'object') {
+    const k = String(days).padStart(3, '0');
+    const alcanceAbs = campaign?.absolute_reach?.[k];
+    const alcancePct = campaign?.percentage_reach?.[k];
+    const freq = campaign?.frequency_visualization?.[k];
+    const grp = campaign?.total_grp?.[k];
+
+    if (alcanceAbs != null || alcancePct != null || freq != null || grp != null) {
+      return {
+        ok: true,
+        alcance_total_abs: alcanceAbs ?? null,
+        alcance_total_pct: alcancePct ?? null,
+        // A API não traz um campo explícito de impactos multi-período; usar alcance absoluto como proxy.
+        impactos_visualizacoes_total: alcanceAbs ?? null,
+        frequencia: freq ?? null,
+        grp: grp ?? null,
+        debug: {
+          source: 'audience_and_scope.campaign',
+          key: k
+        }
+      };
+    }
+  }
+
   const compHit = findComparative(campaignDetails);
   if (!compHit) {
     return {
