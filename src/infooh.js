@@ -127,8 +127,17 @@ export async function getToken() {
 
 export async function getCampaignDetails(campaignId) {
   const { baseUrl } = getConfig();
-  const token = await getToken();
   const url = `${baseUrl}/api/v1/campaigns/${encodeURIComponent(String(campaignId))}/`;
+
+  // Se você fornecer o header completo (copiado do DevTools), use ele diretamente.
+  // Ex.: INFOOH_AUTH_HEADER="token xxxxx" ou "Bearer xxxxx" etc.
+  if (process.env.INFOOH_AUTH_HEADER) {
+    return httpJson(url, {
+      headers: { Authorization: process.env.INFOOH_AUTH_HEADER }
+    });
+  }
+
+  const token = await getToken();
 
   // A InfoOH parece usar diferentes esquemas de Authorization dependendo do ambiente.
   // Tentar os mais comuns até obter JSON.
@@ -142,7 +151,6 @@ export async function getCampaignDetails(campaignId) {
       });
     } catch (e) {
       lastErr = e;
-      // Se for Non-JSON response, continuar tentando. Para outros erros (404/403), também tentar os demais.
     }
   }
 
