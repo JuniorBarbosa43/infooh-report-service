@@ -106,18 +106,14 @@ export async function resolveFieldIdsByName(desiredNames) {
 }
 
 export async function updateContactCustomFields(contactId, fieldIdToValue) {
-  const { locationId } = getLcConfig();
-
   const customFields = Object.entries(fieldIdToValue)
     .filter(([, v]) => v !== undefined)
     .map(([id, value]) => ({ id, value: value == null ? '' : String(value) }));
 
-  const body = {
-    locationId,
-    customFields
-  };
+  // Neste endpoint, o LeadConnector rejeita `locationId` no body.
+  // (Erro: "property locationId should not exist").
+  const body = { customFields };
 
-  // Endpoint conhecido (HighLevel/LeadConnector)
   return lcJson(`/contacts/${encodeURIComponent(String(contactId))}`, {
     method: 'PUT',
     body
