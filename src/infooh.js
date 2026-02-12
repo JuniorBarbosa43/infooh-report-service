@@ -285,21 +285,68 @@ export function extractMetrics(campaignDetails, days) {
   // Nele, os dias vêm como chaves "007" e "014" (strings com zero à esquerda).
   const campaign = campaignDetails?.audience_and_scope?.campaign;
   if (campaign && typeof campaign === 'object') {
+    const getSeriesVal = (series, day) => {
+      if (!series || typeof series !== 'object') return null;
+
+      const key = String(day).padStart(3, '0');
+      if (series[key] != null) return series[key];
+
+      // Se não existir exatamente (ex.: 028/049/056), interpolar entre os pontos disponíveis.
+      const points = Object.entries(series)
+        .map(([k, v]) => ({ day: Number(k), val: Number(v) }))
+        .filter(p => Number.isFinite(p.day) && Number.isFinite(p.val))
+        .sort((a, b) => a.day - b.day);
+
+      if (!points.length) return null;
+
+      // achar vizinhos
+      const target = Number(day);
+      let lo = null, hi = null;
+      for (const p of points) {
+        if (p.day <= target) lo = p;
+        if (p.day >= target) { hi = p; break; }
+      }
+
+      if (!lo) return points[0].val;
+      if (!hi) return points[points.length - 1].val;
+      if (hi.day === lo.day) return lo.val;
+
+      const t = (target - lo.day) / (hi.day - lo.day);
+      return lo.val + (hi.val - lo.val) * t;
+    };
+
     const k = String(days).padStart(3, '0');
-    const alcanceAbs = campaign?.absolute_reach?.[k];
-    const alcancePct = campaign?.percentage_reach?.[k];
-    const freq = campaign?.frequency_visualization?.[k];
-    const grp = campaign?.total_grp?.[k];
+    const alcanceAbs = getSeriesVal(campaign?.absolute_reach, days);
+    const alcancePct = getSeriesVal(campaign?.percentage_reach, days);
+    const freq = getSeriesVal(campaign?.frequency_visualization, days);
+    const grp = getSeriesVal(campaign?.total_grp, days);
 
     if (alcanceAbs != null || alcancePct != null || freq != null || grp != null) {
       // CPM (custo por mil) vem em audience_and_scope.cost_per_thousand.{total,avarage}
-      const k2 = String(days).padStart(2, '0');
-      const cpmTotal = campaignDetails?.audience_and_scope?.cost_per_thousand?.total?.[k2] ??
-        campaignDetails?.audience_and_scope?.cost_per_thousand?.total?.[String(days)] ??
-        null;
-      const cpmMedio = campaignDetails?.audience_and_scope?.cost_per_thousand?.avarage?.[k2] ??
-        campaignDetails?.audience_and_scope?.cost_per_thousand?.avarage?.[String(days)] ??
-        null;
+      // Observação: a API costuma ter CPM só para alguns marcos (ex.: 07/14/30). Para 28/49/56 pode ficar vazio.
+      const getCpmVal = (series, day) => {
+        if (!series || typeof series !== 'object') return null;
+        const key2 = String(day).padStart(2, '0');
+        if (series[key2] != null) return series[key2];
+        if (series[String(day)] != null) return series[String(day)];
+        // tentar interpolar com base nos dias disponíveis
+        const points = Object.entries(series)
+          .map(([k, v]) => ({ day: Number(k), val: Number(v) }))
+          .filter(p => Number.isFinite(p.day) && Number.isFinite(p.val))
+          .sort((a, b) => a.day - b.day);
+        const target = Number(day);
+        let lo = null, hi = null;
+        for (const p of points) {
+          if (p.day <= target) lo = p;
+          if (p.day >= target) { hi = p; break; }
+        }
+        if (!lo || !hi || hi.day === lo.day) return lo?.val ?? null;
+        const t = (target - lo.day) / (hi.day - lo.day);
+        return lo.val + (hi.val - lo.val) * t;
+      };
+
+      const cpmTotal = getCpmVal(campaignDetails?.audience_and_scope?.cost_per_thousand?.total, days);
+      const cpmMedio = getCpmVal(campaignDetails?.audience_and_scope?.cost_per_thousand?.avarage, days);
 
       // "IMPACTOS | VISUALIZAÇÕES TOTAL" no painel bate com reach_abs * frequency.
       const impactsTotal = (alcanceAbs != null && freq != null)
@@ -318,7 +365,7 @@ export function extractMetrics(campaignDetails, days) {
         debug: {
           source: 'audience_and_scope.campaign',
           key: k,
-          key2: k2
+          interpolated: ![7,14,21,35,42].includes(Number(days))
         }
       };
     }

@@ -65,7 +65,8 @@ app.post('/report', async (req, res) => {
 
     const d = Number(days);
     if (!campaign_id) return res.status(400).json({ ok: false, error: 'campaign_id_required', receivedKeys: Object.keys(body), receivedQueryKeys: Object.keys(q) });
-    const allowedDays = [7, 14, 21, 30, 35, 42, 60];
+    // A régua comercial trabalha em múltiplos de 7 (bi-semanas/semanas).
+    const allowedDays = [7, 14, 21, 28, 35, 42, 49, 56];
     if (!allowedDays.includes(d)) return res.status(400).json({ ok: false, error: 'days_not_supported', allowedDays });
 
     const details = await getCampaignDetails(campaign_id);
