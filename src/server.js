@@ -65,8 +65,10 @@ app.post('/report', async (req, res) => {
 
     const d = Number(days);
     if (!campaign_id) return res.status(400).json({ ok: false, error: 'campaign_id_required', receivedKeys: Object.keys(body), receivedQueryKeys: Object.keys(q) });
-    // A régua comercial trabalha em múltiplos de 7 (bi-semanas/semanas).
-    const allowedDays = [7, 14, 21, 28, 35, 42, 49, 56];
+    // Suportar réguas semanais (múltiplos de 7 até 56) e mensais (múltiplos de 30 até 360).
+    const allowedWeekly = [7, 14, 21, 28, 35, 42, 49, 56];
+    const allowedMonthly = [30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330, 360];
+    const allowedDays = [...allowedWeekly, ...allowedMonthly];
     if (!allowedDays.includes(d)) return res.status(400).json({ ok: false, error: 'days_not_supported', allowedDays });
 
     const details = await getCampaignDetails(campaign_id);

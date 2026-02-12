@@ -365,7 +365,7 @@ export function extractMetrics(campaignDetails, days) {
         debug: {
           source: 'audience_and_scope.campaign',
           key: k,
-          interpolated: ![7,14,21,35,42].includes(Number(days))
+          interpolated: true
         }
       };
     }
