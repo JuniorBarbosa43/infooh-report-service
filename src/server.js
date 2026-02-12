@@ -123,6 +123,7 @@ app.post('/report', async (req, res) => {
       campaign_id,
       contact_id: contact_id || null,
       days: d,
+      dias_extraidos: String(d),
       // valores formatados (pt-BR) para gravar limpo nos campos
       alcance_total_abs: fmtInt(metrics.alcance_total_abs),
       alcance_total_pct: fmtPct(metrics.alcance_total_pct),
@@ -143,6 +144,7 @@ app.post('/report', async (req, res) => {
       try {
         const desiredFieldNames = [
           'Nome Da Campanha',
+          'Dias Extraidos',
           'Alcance Total ABS',
           'Alcance %',
           'Impactos / Visualizações Total',
@@ -156,6 +158,7 @@ app.post('/report', async (req, res) => {
 
         const fieldIdToValue = {};
         if (nameToId['Nome Da Campanha']) fieldIdToValue[nameToId['Nome Da Campanha']] = String(details?.name || '');
+        if (nameToId['Dias Extraidos']) fieldIdToValue[nameToId['Dias Extraidos']] = payload.dias_extraidos;
         if (nameToId['Alcance Total ABS']) fieldIdToValue[nameToId['Alcance Total ABS']] = payload.alcance_total_abs;
         if (nameToId['Alcance %']) fieldIdToValue[nameToId['Alcance %']] = payload.alcance_total_pct;
         if (nameToId['Impactos / Visualizações Total']) fieldIdToValue[nameToId['Impactos / Visualizações Total']] = payload.impactos_visualizacoes_total;
