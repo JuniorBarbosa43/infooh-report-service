@@ -121,22 +121,38 @@ export async function updateContactCustomFields(contactId, fieldIdToValue) {
   const cid = encodeURIComponent(String(contactId));
   const lid = encodeURIComponent(String(locationId));
   const paths = [
+    // Variante "global"
     `/contacts/${cid}`,
     `/contacts/${cid}/`,
+
+    // Algumas instalações exigem locationId como query
     `/contacts/${cid}?locationId=${lid}`,
     `/contacts/${cid}/?locationId=${lid}`,
     `/contacts/${cid}?location_id=${lid}`,
-    `/contacts/${cid}/?location_id=${lid}`
+    `/contacts/${cid}/?location_id=${lid}`,
+
+    // Algumas documentações expõem rota aninhada por location
+    `/locations/${lid}/contacts/${cid}`,
+    `/locations/${lid}/contacts/${cid}/`,
+    `/locations/${lid}/contacts/${cid}?locationId=${lid}`,
+
+    // Em alguns ambientes o update de customFields pode ser um subrecurso
+    `/contacts/${cid}/customFields`,
+    `/contacts/${cid}/custom-fields`,
   ];
 
   let lastErr;
-  for (const p of paths) {
-    try {
-      return await lcJson(p, { method: 'PUT', body });
-    } catch (e) {
-      lastErr = e;
-      // Se não for 404, provavelmente é um erro real (401/422/400) -> não faz sentido tentar outras rotas.
-      if (e?.status && e.status !== 404) throw e;
+  const methods = ['PUT', 'PATCH'];
+
+  for (const method of methods) {
+    for (const p of paths) {
+      try {
+        return await lcJson(p, { method, body });
+      } catch (e) {
+        lastErr = e;
+        // Se não for 404, provavelmente é um erro real (401/422/400) -> não faz sentido tentar outras rotas.
+        if (e?.status && e.status !== 404) throw e;
+      }
     }
   }
 
