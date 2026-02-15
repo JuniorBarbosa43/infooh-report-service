@@ -106,6 +106,8 @@ export async function resolveFieldIdsByName(desiredNames) {
 }
 
 export async function updateContactCustomFields(contactId, fieldIdToValue) {
+  const { locationId } = getLcConfig();
+
   const customFields = Object.entries(fieldIdToValue)
     .filter(([, v]) => v !== undefined)
     .map(([id, value]) => ({ id, value: value == null ? '' : String(value) }));
@@ -114,8 +116,29 @@ export async function updateContactCustomFields(contactId, fieldIdToValue) {
   // (Erro: "property locationId should not exist").
   const body = { customFields };
 
-  return lcJson(`/contacts/${encodeURIComponent(String(contactId))}`, {
-    method: 'PUT',
-    body
-  });
+  // A API do LeadConnector tem variações de rota por versão/ambiente.
+  // Tentamos alguns formatos comuns antes de falhar.
+  const cid = encodeURIComponent(String(contactId));
+  const lid = encodeURIComponent(String(locationId));
+  const paths = [
+    `/contacts/${cid}`,
+    `/contacts/${cid}/`,
+    `/contacts/${cid}?locationId=${lid}`,
+    `/contacts/${cid}/?locationId=${lid}`,
+    `/contacts/${cid}?location_id=${lid}`,
+    `/contacts/${cid}/?location_id=${lid}`
+  ];
+
+  let lastErr;
+  for (const p of paths) {
+    try {
+      return await lcJson(p, { method: 'PUT', body });
+    } catch (e) {
+      lastErr = e;
+      // Se não for 404, provavelmente é um erro real (401/422/400) -> não faz sentido tentar outras rotas.
+      if (e?.status && e.status !== 404) throw e;
+    }
+  }
+
+  throw lastErr;
 }
