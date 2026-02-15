@@ -73,6 +73,8 @@ app.post('/report', async (req, res) => {
       body?.data?.phone ||
       null;
 
+    const phone_received = phone ? String(phone) : null;
+
     const d = Number(days);
     if (!campaign_id) return res.status(400).json({ ok: false, error: 'campaign_id_required', receivedKeys: Object.keys(body), receivedQueryKeys: Object.keys(q) });
     // Suportar réguas semanais (múltiplos de 7 até 56) e mensais (múltiplos de 30 até 360).
@@ -149,6 +151,8 @@ app.post('/report', async (req, res) => {
     // O MovaTalks não consegue mapear a response do webhook para campos, então fazemos aqui.
     let contact_updated = false;
     let contact_update_error = null;
+    let lc_contact_id_used = contact_id || null;
+    let lc_contact_id_resolved_by_phone = null;
 
     if (contact_id && process.env.LC_PIT && process.env.LC_LOCATION_ID) {
       try {
@@ -185,7 +189,9 @@ app.post('/report', async (req, res) => {
           // Tenta resolver pelo telefone do contato e repetir.
           if (e?.status === 404 && phone) {
             const resolvedId = await findContactIdByPhone(phone);
-            if (resolvedId && resolvedId !== contact_id) {
+            lc_contact_id_resolved_by_phone = resolvedId || null;
+            if (resolvedId) {
+              lc_contact_id_used = resolvedId;
               await updateContactCustomFields(resolvedId, fieldIdToValue);
               contact_updated = true;
             } else {
@@ -206,7 +212,10 @@ app.post('/report', async (req, res) => {
 
     return res.json({
       ...payload,
+      phone_received,
       contact_updated,
+      lc_contact_id_used,
+      lc_contact_id_resolved_by_phone,
       contact_update_error
     });
   } catch (e) {
