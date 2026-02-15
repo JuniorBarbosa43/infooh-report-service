@@ -20,6 +20,10 @@ export function getLcConfig() {
   };
 }
 
+function onlyDigits(s) {
+  return String(s || '').replace(/\D+/g, '');
+}
+
 async function lcJson(path, { method = 'GET', headers = {}, body } = {}) {
   const { baseUrl, version, pit } = getLcConfig();
   const url = `${baseUrl}${path}`;
@@ -103,6 +107,39 @@ export async function resolveFieldIdsByName(desiredNames) {
     if (id) out[name] = id;
   }
   return out;
+}
+
+export async function findContactIdByPhone(phone) {
+  const { locationId } = getLcConfig();
+  const q = onlyDigits(phone);
+  if (!q) return null;
+
+  // Tenta endpoints comuns de busca/listagem
+  const paths = [
+    `/contacts/?locationId=${encodeURIComponent(locationId)}&query=${encodeURIComponent(q)}`,
+    `/contacts/?locationId=${encodeURIComponent(locationId)}&q=${encodeURIComponent(q)}`,
+    `/contacts/search?locationId=${encodeURIComponent(locationId)}&query=${encodeURIComponent(q)}`,
+  ];
+
+  for (const p of paths) {
+    try {
+      const data = await lcJson(p, { method: 'GET' });
+      const list =
+        data?.contacts ||
+        data?.data?.contacts ||
+        data?.data ||
+        (Array.isArray(data) ? data : null);
+
+      if (Array.isArray(list) && list.length) {
+        const c = list[0];
+        return c?.id || c?._id || c?.contactId || null;
+      }
+    } catch (e) {
+      // ignora e tenta o próximo
+    }
+  }
+
+  return null;
 }
 
 export async function updateContactCustomFields(contactId, fieldIdToValue) {

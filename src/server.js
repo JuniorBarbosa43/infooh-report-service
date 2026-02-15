@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { getCampaignDetails, extractMetrics, buildPublicReportLink } from './infooh.js';
-import { resolveFieldIdsByName, updateContactCustomFields } from './leadconnector.js';
+import { resolveFieldIdsByName, updateContactCustomFields, findContactIdByPhone } from './leadconnector.js';
 
 const app = express();
 app.use(cors());
@@ -62,6 +62,16 @@ app.post('/report', async (req, res) => {
       body?.custom_data?.days ||
       body?.data?.days ||
       q.days;
+
+    const phone =
+      body.phone ||
+      body.phone_number ||
+      body?.contact?.phone ||
+      body?.contact?.phoneNumber ||
+      body?.customData?.contact?.phone ||
+      body?.customData?.phone ||
+      body?.data?.phone ||
+      null;
 
     const d = Number(days);
     if (!campaign_id) return res.status(400).json({ ok: false, error: 'campaign_id_required', receivedKeys: Object.keys(body), receivedQueryKeys: Object.keys(q) });
@@ -167,8 +177,24 @@ app.post('/report', async (req, res) => {
         if (nameToId['CPM Total']) fieldIdToValue[nameToId['CPM Total']] = payload.cpm_total;
         if (nameToId['CPM Médio']) fieldIdToValue[nameToId['CPM Médio']] = payload.cpm_medio;
 
-        await updateContactCustomFields(contact_id, fieldIdToValue);
-        contact_updated = true;
+        try {
+          await updateContactCustomFields(contact_id, fieldIdToValue);
+          contact_updated = true;
+        } catch (e) {
+          // Fallback: às vezes o ID que chega do CRM não é o mesmo ID aceito pela API.
+          // Tenta resolver pelo telefone do contato e repetir.
+          if (e?.status === 404 && phone) {
+            const resolvedId = await findContactIdByPhone(phone);
+            if (resolvedId && resolvedId !== contact_id) {
+              await updateContactCustomFields(resolvedId, fieldIdToValue);
+              contact_updated = true;
+            } else {
+              throw e;
+            }
+          } else {
+            throw e;
+          }
+        }
       } catch (e) {
         contact_update_error = {
           message: e.message,
