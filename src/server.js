@@ -28,6 +28,7 @@ app.post('/report', async (req, res) => {
         console.log('[report] body sample:', JSON.stringify(b).slice(0, 2000));
       }
     } catch {}
+
     const body = req.body || {};
     const q = req.query || {};
 
@@ -73,15 +74,23 @@ app.post('/report', async (req, res) => {
       body?.data?.phone ||
       null;
 
-    const phone_received = phone ? String(phone) : null;
-
     const d = Number(days);
-    if (!campaign_id) return res.status(400).json({ ok: false, error: 'campaign_id_required', receivedKeys: Object.keys(body), receivedQueryKeys: Object.keys(q) });
+    if (!campaign_id) {
+      return res.status(400).json({
+        ok: false,
+        error: 'campaign_id_required',
+        receivedKeys: Object.keys(body),
+        receivedQueryKeys: Object.keys(q),
+      });
+    }
+
     // Suportar réguas semanais (múltiplos de 7 até 56) e mensais (múltiplos de 30 até 360).
     const allowedWeekly = [7, 14, 21, 28, 35, 42, 49, 56];
     const allowedMonthly = [30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330, 360];
     const allowedDays = [...allowedWeekly, ...allowedMonthly];
-    if (!allowedDays.includes(d)) return res.status(400).json({ ok: false, error: 'days_not_supported', allowedDays });
+    if (!allowedDays.includes(d)) {
+      return res.status(400).json({ ok: false, error: 'days_not_supported', allowedDays });
+    }
 
     const details = await getCampaignDetails(campaign_id);
     const metrics = extractMetrics(details, d);
@@ -96,7 +105,7 @@ app.post('/report', async (req, res) => {
         campaign_id,
         contact_id: contact_id || null,
         days: d,
-        link_do_relatorio: link
+        link_do_relatorio: link,
       });
     }
 
@@ -127,7 +136,12 @@ app.post('/report', async (req, res) => {
     const fmtBRL = (v) => {
       const n = toNum(v);
       if (n == null) return '';
-      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+      return new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(n);
     };
 
     const payload = {
@@ -144,15 +158,13 @@ app.post('/report', async (req, res) => {
       grp: fmtInt(metrics.grp),
       cpm_total: fmtBRL(metrics.cpm_total),
       cpm_medio: fmtBRL(metrics.cpm_medio),
-      link_do_relatorio: null
+      link_do_relatorio: null,
     };
 
     // Se contact_id + credenciais LC_* existirem, atualizar o contato automaticamente.
     // O MovaTalks não consegue mapear a response do webhook para campos, então fazemos aqui.
     let contact_updated = false;
     let contact_update_error = null;
-    let lc_contact_id_used = contact_id || null;
-    let lc_contact_id_resolved_by_phone = null;
 
     if (contact_id && process.env.LC_PIT && process.env.LC_LOCATION_ID) {
       try {
@@ -165,7 +177,7 @@ app.post('/report', async (req, res) => {
           'Frequência',
           'GRP',
           'CPM Total',
-          'CPM Médio'
+          'CPM Médio',
         ];
 
         const nameToId = await resolveFieldIdsByName(desiredFieldNames);
@@ -189,9 +201,7 @@ app.post('/report', async (req, res) => {
           // Tenta resolver pelo telefone do contato e repetir.
           if (e?.status === 404 && phone) {
             const resolvedId = await findContactIdByPhone(phone);
-            lc_contact_id_resolved_by_phone = resolvedId || null;
             if (resolvedId) {
-              lc_contact_id_used = resolvedId;
               await updateContactCustomFields(resolvedId, fieldIdToValue);
               contact_updated = true;
             } else {
@@ -205,18 +215,15 @@ app.post('/report', async (req, res) => {
         contact_update_error = {
           message: e.message,
           status: e.status,
-          data: e.data
+          data: e.data,
         };
       }
     }
 
     return res.json({
       ...payload,
-      phone_received,
       contact_updated,
-      lc_contact_id_used,
-      lc_contact_id_resolved_by_phone,
-      contact_update_error
+      contact_update_error,
     });
   } catch (e) {
     const status = e.status || 500;
@@ -226,7 +233,7 @@ app.post('/report', async (req, res) => {
       status,
       url: e.url,
       method: e.method,
-      data: e.data && status !== 500 ? e.data : undefined
+      data: e.data && status !== 500 ? e.data : undefined,
     });
   }
 });
